@@ -1,0 +1,27 @@
+{
+    "name" : "ktaris/lector-cfdi",
+    "description" : "Conjunto de clases para vaciar el XML de un CFDI en objetos PHP para su posterior uso.",
+    "keywords" : [
+        "cfdi",
+        "sat",
+        "pdf"
+    ],
+    "type" : "library",
+    "license" : "MIT License",
+    "authors" : [{
+            "name" : "Carlos Ramos",
+            "email" : "carlos@ramoscarlos.com"
+        }
+    ],
+    "require": {
+        "ktaris/cfdi": "@dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^6.5",
+    },
+    "autoload" : {
+        "psr-4" : {
+            "ktaris\\lector-cfdi\\" : ""
+        }
+    }
+}
