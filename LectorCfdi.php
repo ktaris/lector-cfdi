@@ -163,7 +163,7 @@ class LectorCfdi
             $dataOut['Traslados'] = $traslados;
         }
 
-        $retenciones = $this->leerTraslados($impuestos);
+        $retenciones = $this->leerRetenciones($impuestos);
         if (!empty($retenciones)) {
             $dataOut['Retenciones'] = $retenciones;
         }
