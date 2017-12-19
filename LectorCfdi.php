@@ -10,6 +10,7 @@ namespace ktaris\lectorcfdi;
 
 use ktaris\lectorcfdi\LectorCfdiException;
 use ktaris\cfdi\CFDI;
+use LaLit\XML2Array;
 
 class LectorCfdi
 {
@@ -23,144 +24,300 @@ class LectorCfdi
      * archivo, que se usa internamente para cargar los datos a
      * cada uno de los modelos.
      */
-    protected $_cfdi_xml_obj;
+    protected $_arreglo;
 
     public function leerDesdeCadena($xmlStr)
     {
-        $this->_cfdi_xml_obj = new \SimpleXMLElement($xmlStr);
+        $this->_arreglo = XML2Array::createArray($xmlStr);
+        $nodoComprobante = $this->leerNodoRequerido('cfdi:Comprobante');
+
+        $this->_arreglo = $nodoComprobante;
 
         $this->_cfdi = new CFDI;
 
-        $this->leerNodosDeCfdi();
+        $datos = $this->_arreglo['@attributes'];
+        $datos['Emisor'] = $this->leerAtributosDeNodoRequerido('cfdi:Emisor');
+        $datos['Receptor'] = $this->leerAtributosDeNodoRequerido('cfdi:Receptor');
+        $datos['Conceptos'] = $this->leerConceptos();
+
+        $impuestos = $this->leerImpuestos($datos);
+        if (!empty($impuestos)) {
+            $datos['Impuestos'] = $impuestos;
+        }
+
+        $complementos = $this->leerComplementos();
+        if (!empty($complementos)) {
+            $datos['Complemento'] = $complementos;
+        }
+
+        $this->_cfdi->load($datos);
 
         return $this->_cfdi;
     }
 
     // ==================================================================
     //
-    // Funciones de procesamiento interno, para leer nodo por nodo.
+    // Métodos protegidos para tratamiento de información de los nodos.
     //
     // ------------------------------------------------------------------
 
-    protected function leerNodosDeCfdi()
+    protected function leerConceptos()
     {
-        $datos = [];
-        // Comprobante.
-        $nodo = $this->leerNodoComprobante();
-        $datosTmp = $this->envolverAtributosDeModelo('Comprobante', $nodo);
-        $datos = array_merge($datos, $datosTmp);
-        // Emisor.
-        $nodo = $this->leerNodoEmisor();
-        $datosTmp = $this->envolverAtributosDeModelo('Emisor', $nodo);
-        $datos = array_merge($datos, $datosTmp);
-        // Receptor.
-        $nodo = $this->leerNodoReceptor();
-        $datosTmp = $this->envolverAtributosDeModelo('Receptor', $nodo);
-        $datos = array_merge($datos, $datosTmp);
-        // Conceptos.
-        $nodo = $this->leerNodoConceptos();
-        $datosTmp = $this->envolverAtributosDeArreglo('Conceptos', $nodo);
-        $datos = array_merge($datos, $datosTmp);
+        $dataOut = [];
 
-        $this->_cfdi->load($datos);
+        $conceptos = $this->leerNodoRequerido('cfdi:Conceptos');
+        $conceptos = $this->leerNodoRequerido('cfdi:Concepto', $conceptos);
 
-        return $datos;
+        foreach ($conceptos as $i => $data) {
+            $concepto = $this->leerConcepto($data);
+
+            $dataOut[$i] = $concepto;
+        }
+
+        return $dataOut;
     }
 
-    protected function leerNodoComprobante()
+    protected function leerConcepto($dataIn)
     {
-        return $this->leerNodo('//cfdi:Comprobante');
+        $dataOut = [];
+
+        $dataOut = $dataIn['@attributes'];
+
+        $impuestos = $this->leerConceptoImpuestos($dataIn);
+        if (!empty($impuestos)) {
+            $dataOut['Impuestos'] = $impuestos;
+        }
+
+        return $dataOut;
     }
 
-    protected function leerNodoEmisor()
+    protected function leerConceptoImpuestos($dataIn)
     {
-        return $this->leerNodo('//cfdi:Comprobante/cfdi:Emisor');
+        $dataOut = [];
+
+        $impuestos = $this->leerNodo('cfdi:Impuestos', $dataIn);
+        if (empty($impuestos)) {
+            return $dataOut;
+        }
+
+        $traslados = $this->leerConceptoTraslados($impuestos);
+        if (!empty($traslados)) {
+            $dataOut['Traslados'] = $traslados;
+        }
+
+        $retenciones = $this->leerConceptoRetenciones($impuestos);
+        if (!empty($retenciones)) {
+            $dataOut['Retenciones'] = $retenciones;
+        }
+
+        return $dataOut;
     }
 
-    protected function leerNodoReceptor()
+    protected function leerConceptoTraslados($dataIn)
     {
-        return $this->leerNodo('//cfdi:Comprobante/cfdi:Receptor');
+        $dataOut = [];
+
+        $impuestos = $this->leerNodo('cfdi:Traslados', $dataIn);
+        if (empty($impuestos)) {
+            return $dataOut;
+        }
+
+        $impuestosArray = $this->adaptarAArreglo($this->leerNodo('cfdi:Traslado', $impuestos));
+        foreach ($impuestosArray as $i => $impuesto) {
+            $dataOut[$i] = $this->leerAtributos($impuesto);
+        }
+
+        return $dataOut;
     }
 
-    protected function leerNodoConceptos()
+    protected function leerConceptoRetenciones($dataIn)
     {
-        $nodo = $this->leerNodo('//cfdi:Comprobante/cfdi:Conceptos');
+        $dataOut = [];
 
-        return $this->leerNodos($nodo, '//cfdi:Concepto');
+        $impuestos = $this->leerNodo('cfdi:Retenciones', $dataIn);
+        if (empty($impuestos)) {
+            return $dataOut;
+        }
+
+        $impuestosArray = $this->adaptarAArreglo($this->leerNodo('cfdi:Retencion', $impuestos));
+        foreach ($impuestosArray as $i => $impuesto) {
+            $dataOut[$i] = $this->leerAtributos($impuesto);
+        }
+
+        return $dataOut;
+    }
+
+    protected function leerImpuestos($dataIn)
+    {
+        $dataOut = [];
+
+        $impuestos = $this->leerNodo('cfdi:Impuestos');
+        if (empty($impuestos)) {
+            return $dataOut;
+        }
+
+        $dataOut = $this->leerAtributos($impuestos);
+
+        $traslados = $this->leerTraslados($impuestos);
+        if (!empty($traslados)) {
+            $dataOut['Traslados'] = $traslados;
+        }
+
+        $retenciones = $this->leerTraslados($impuestos);
+        if (!empty($retenciones)) {
+            $dataOut['Retenciones'] = $retenciones;
+        }
+
+        return $dataOut;
+    }
+
+    protected function leerTraslados($dataIn)
+    {
+        $dataOut = [];
+
+        $impuestos = $this->leerNodo('cfdi:Traslados', $dataIn);
+        if (empty($impuestos)) {
+            return $dataOut;
+        }
+
+        $dataOut = $this->leerArregloDeDatos('cfdi:Traslado', $impuestos);
+
+        return $dataOut;
+    }
+
+    protected function leerRetenciones($dataIn)
+    {
+        $dataOut = [];
+
+        $impuestos = $this->leerNodo('cfdi:Retenciones', $dataIn);
+        if (empty($impuestos)) {
+            return $dataOut;
+        }
+
+        $dataOut = $this->leerArregloDeDatos('cfdi:Retencion', $impuestos);
+
+        return $dataOut;
     }
 
     // ==================================================================
     //
-    // Funciones de procesamiento interno, comunes.
+    // Lectura de complementos.
     //
     // ------------------------------------------------------------------
 
-    protected function leerNodo($xpath)
+    protected function leerComplementos()
     {
-        $nodo = $this->_cfdi_xml_obj->xpath($xpath);
+        $dataOut = [];
 
-        if (empty($nodo)) {
-            throw new LectorCfdiException('No se encontró el nodo '.$xpath.'.');
+        $complementos = $this->leerNodo('cfdi:Complemento');
+        if (empty($complementos)) {
+            return $dataOut;
         }
 
-        $nodo = $nodo[0];
+        $nodo = $this->leerTimbreFiscalDigital($complementos);
+        if (!empty($nodo)) {
+            $dataOut['TimbreFiscalDigital'] = $nodo;
+        }
+
+        return $dataOut;
+    }
+
+    protected function leerTimbreFiscalDigital($dataIn)
+    {
+        return $this->leerAtributosDeNodo('tfd:TimbreFiscalDigital', $dataIn);
+    }
+
+    // ==================================================================
+    //
+    // Métodos protegidos para tratamiento de datos, funciones comunes.
+    //
+    // ------------------------------------------------------------------
+
+    protected function leerArregloDeDatos($nombreDeNodo, $dataIn)
+    {
+        $dataOut = [];
+
+        $nodos = $this->leerNodo($nombreDeNodo, $dataIn);
+        $nodosArray = $this->adaptarAArreglo($nodos);
+
+        foreach ($nodosArray as $i => $nodo) {
+            $dataOut[$i] = $this->leerAtributos($nodo);
+        }
+
+        return $dataOut;
+    }
+
+    /**
+     * El convertidor de XML2Array hace de nodos que pueden ser varios uno
+     * solo cuando sólo está presente una instancia. No obstante, para mayor
+     * compatibilidad se crea un arreglo de un elemento, para poder iterar
+     * sobre la lista, aunque sea uno solo.
+     * Para esto se utiliza esta función, para determinar si se tuvo un solo
+     * elemento de algo que queremos interpretar como arreglo.
+     * @param  array $dataIn datos de entrada, ya sea uno o varios.
+     * @return array         datos de salida, en lista.
+     */
+    protected function adaptarAArreglo($dataIn)
+    {
+        $dataOut = [];
+
+        if (!empty($dataIn) && !empty($dataIn['@attributes'])) {
+            $dataOut[0] = $dataIn;
+        } else {
+            $dataOut = $dataIn;
+        }
+
+        return $dataOut;
+    }
+
+    protected function leerAtributosDeNodoRequerido($nombreDeNodo, $nodoInicial = null)
+    {
+        $nodo = $this->leerNodoRequerido($nombreDeNodo, $nodoInicial);
+
+        return $nodo['@attributes'];
+    }
+
+    protected function leerAtributosDeNodo($nombreDeNodo, $nodoInicial = null)
+    {
+        $nodo = $this->leerNodo($nombreDeNodo, $nodoInicial);
+
+        if (empty($nodo)) {
+            return $nodo;
+        }
+
+        return $nodo['@attributes'];
+    }
+
+    protected function leerNodoRequerido($nombreDeNodo, $nodoInicial = null)
+    {
+        $nodo = $this->leerNodo($nombreDeNodo, $nodoInicial);
+
+        if (empty($nodo)) {
+            throw new LectorCfdiException("El XML no contiene el nodo requerido $nombreDeNodo.");
+        }
 
         return $nodo;
     }
 
-    protected function leerNodos($nodo, $xpath)
+    protected function leerNodo($nombreDeNodo, $nodoInicial = null)
     {
-        $nodos = [];
-        foreach ($nodo->xpath($xpath) as $i => $n) {
-            $nodos[] = $n;
+        if ($nodoInicial === null) {
+            $nodoInicial = $this->_arreglo;
         }
 
-        return $nodos;
-    }
-
-    /**
-     * Carga los datos de un nodo de XML al modelo que lo representa
-     * en PHP, utilizando el nombre de clase del objeto para crear
-     * el arreglo de carga de datos.
-     * @param  mixed $modelo modelo a recibir los datos.
-     * @param  SimpleXMLElement $nodo   nodo dentro del XML del CFDI.
-     * @return boolean         bandera para saber si se cargaron los datos.
-     */
-    protected function cargarDatos($modelo, $nodo)
-    {
-        $datos = $this->envolverAtributosDeModelo($modelo->nombreDeClase, $nodo);
-
-        return $modelo->load($datos);
-    }
-
-    /**
-     * Se encarga de envolver los atributos de un nodo en un arreglo
-     * que puede ser entendido por los modelos de Yii2 para su carga.
-     *
-     * @param  string           $nombreDeModelo Nombre del modelo en ktaris\yii2-cfdi.
-     * @param  SimpleXMLElement $nodoXml        Nodo de XML con los atributos.
-     * @return array            arreglo de datos con el nombre de modelo.
-     */
-    protected function envolverAtributosDeModelo($nombreDeModelo, $nodoXml)
-    {
-        return [$nombreDeModelo => current($nodoXml->attributes())];
-    }
-
-    /**
-     * Se encarga de envolver los atributos de un nodo en un arreglo
-     * que puede ser entendido por los modelos de Yii2 para su carga.
-     *
-     * @param  string           $nombreDeContenedor Nombre del elemento contenedor en el CFDI.
-     * @param  SimpleXMLElement $nodoXml            Nodo de XML con los atributos.
-     * @return array            arreglo de datos con el nombre de modelo.
-     */
-    protected function envolverAtributosDeArreglo($nombreDeContenedor, $nodosXml)
-    {
-        $datos = [];
-        foreach ($nodosXml as $i => $n) {
-            $datos[] = current($n->attributes());
+        if (empty($nodoInicial[$nombreDeNodo])) {
+            return [];
         }
 
-        return [$nombreDeContenedor => $datos];
+        return $nodoInicial[$nombreDeNodo];
+    }
+
+    protected function leerAtributos($dataIn)
+    {
+        if (empty($dataIn['@attributes'])) {
+            throw new LectorCfdiException('No hay atributos para leer.');
+        }
+
+        return $dataIn['@attributes'];
     }
 }

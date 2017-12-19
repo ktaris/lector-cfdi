@@ -14,7 +14,8 @@
         }
     ],
     "require": {
-        "ktaris/yii2-cfdi": "dev-master"
+        "ktaris/yii2-cfdi": "dev-master",
+        "digitickets/lalit": "^3.0.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^6.5"
