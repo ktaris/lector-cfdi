@@ -71,6 +71,7 @@ class LectorCfdi
 
         $conceptos = $this->leerNodoRequerido('cfdi:Conceptos');
         $conceptos = $this->leerNodoRequerido('cfdi:Concepto', $conceptos);
+        $conceptos = $this->adaptarAArreglo($conceptos);
 
         foreach ($conceptos as $i => $data) {
             $concepto = $this->leerConcepto($data);
