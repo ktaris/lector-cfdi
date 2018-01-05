@@ -8,6 +8,7 @@
 
 namespace ktaris\lectorcfdi;
 
+use Yii;
 use ktaris\lectorcfdi\LectorCfdiException;
 use ktaris\lectorcfdi\CFDI;
 use LaLit\XML2Array;
@@ -21,11 +22,22 @@ class LectorCfdi
      */
     protected $_cfdi;
     /**
+     * @var array arreglo de datos para instanciar una clase diferente
+     * de CFDI. Utilizada principalmente para adicionar propiedades a
+     * la representación impresa.
+     */
+    protected $_cfdi_config;
+    /**
      * @var SimpleXMLElement objeto que lee el XML, de cadena o de
      * archivo, que se usa internamente para cargar los datos a
      * cada uno de los modelos.
      */
     protected $_arreglo;
+
+    public function __construct($config = [])
+    {
+        $this->_cfdi_config = $config;
+    }
 
     public function leerDesdeCadena($xmlStr)
     {
@@ -34,7 +46,7 @@ class LectorCfdi
 
         $this->_arreglo = $nodoComprobante;
 
-        $this->_cfdi = new CFDI;
+        $this->_cfdi = $this->crearObjetoCfdi();
 
         $datos = $this->_arreglo['@attributes'];
         $datos['Emisor'] = $this->leerAtributosDeNodoRequerido('cfdi:Emisor');
@@ -324,5 +336,20 @@ class LectorCfdi
         }
 
         return $dataIn['@attributes'];
+    }
+
+    // ==================================================================
+    //
+    // Métodos de procesamiento interno, propios de la clase.
+    //
+    // ------------------------------------------------------------------
+
+    private function crearObjetoCfdi()
+    {
+        if (empty($this->_cfdi_config)) {
+            return new CFDI;
+        } else {
+            return Yii::createObject($this->_cfdi_config);
+        }
     }
 }
