@@ -10,9 +10,8 @@ namespace ktaris\lectorcfdi;
 
 use Yii;
 use ktaris\lectorcfdi\LectorCfdiException;
-use ktaris\lectorcfdi\CFDI;
+use ktaris\cfdi\CFDI;
 use LaLit\XML2Array;
-use ktaris\cadenaoriginal\CadenaOriginal;
 
 class LectorCfdi
 {
@@ -64,9 +63,6 @@ class LectorCfdi
         }
 
         $this->_cfdi->load($datos);
-
-        // Agregar cadena original.
-        $this->_cfdi->CadenaOriginal = CadenaOriginal::obtener($xmlStr);
 
         return $this->_cfdi;
     }
