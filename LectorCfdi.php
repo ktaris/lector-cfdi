@@ -9,12 +9,15 @@
 namespace ktaris\lectorcfdi;
 
 use Yii;
+use LaLit\XML2Array;
+use ktaris\lectorcfdi\traits\ComercioExterior;
 use ktaris\lectorcfdi\LectorCfdiException;
 use ktaris\cfdi\CFDI;
-use LaLit\XML2Array;
 
 class LectorCfdi
 {
+    use ComercioExterior;
+
     /**
      * @var {@link ktaris\cfdi\CFDI} objeto en PHP para su uso con
      * el framework Yii2.
@@ -232,6 +235,11 @@ class LectorCfdi
             $dataOut['TimbreFiscalDigital'] = $nodo;
         }
 
+        $nodo = $this->leerComercioExterior($complementos);
+        if (!empty($nodo)) {
+            $dataOut['ComercioExterior'] = $nodo;
+        }
+
         return $dataOut;
     }
 
@@ -267,7 +275,9 @@ class LectorCfdi
      * sobre la lista, aunque sea uno solo.
      * Para esto se utiliza esta función, para determinar si se tuvo un solo
      * elemento de algo que queremos interpretar como arreglo.
+     *
      * @param  array $dataIn datos de entrada, ya sea uno o varios.
+     *
      * @return array         datos de salida, en lista.
      */
     protected function adaptarAArreglo($dataIn)
@@ -325,6 +335,14 @@ class LectorCfdi
         return $nodoInicial[$nombreDeNodo];
     }
 
+    /**
+     * Esta función lee los atributos de un nodo, y asume que siempre tiene que tener atributos el elemento.
+     * Es decir, el nombre más correcto sería "leerAtributosRequeridos".
+     *
+     * @param  array $dataIn arreglo proveniente de un XML.
+     *
+     * @return array atributos correspondientes según lo que tenía el XML.
+     */
     protected function leerAtributos($dataIn)
     {
         if (empty($dataIn['@attributes'])) {
@@ -332,6 +350,31 @@ class LectorCfdi
         }
 
         return $dataIn['@attributes'];
+    }
+
+    /**
+     * Esta función lee atributos opcionales, en nodos que puede que no tengan ni siquiera un elemento obligatorio.
+     *
+     * @param  array $dataIn arreglo proveniente de un XML.
+     *
+     * @return array atributos correspondientes según lo que tenía el XML.
+     */
+    protected function leerAtributosOpcionales($dataIn)
+    {
+        if (empty($dataIn['@attributes'])) {
+            return [];
+        }
+
+        return $dataIn['@attributes'];
+    }
+
+    protected function envolverAtributosEnNuevoNodo($dataIn, $nombreDeNodo)
+    {
+        if (empty($dataIn)) {
+            return $dataIn;
+        }
+
+        return [$nombreDeNodo => $dataIn];
     }
 
     // ==================================================================
