@@ -10,6 +10,10 @@ trait ComercioExterior
     {
         $cce = $this->leerNodo('cce11:ComercioExterior', $dataIn);
 
+        if (empty($cce)) {
+            return [];
+        }
+
         $dataOut = $this->leerAtributos($cce);
 
         $dataOut['Emisor'] = $this->leerCceEmisor($cce);
