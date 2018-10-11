@@ -11,12 +11,14 @@ namespace ktaris\lectorcfdi;
 use Yii;
 use LaLit\XML2Array;
 use ktaris\lectorcfdi\traits\ComercioExterior;
+use ktaris\lectorcfdi\traits\Pagos;
 use ktaris\lectorcfdi\LectorCfdiException;
 use ktaris\cfdi\CFDI;
 
 class LectorCfdi
 {
     use ComercioExterior;
+    use Pagos;
 
     /**
      * @var {@link ktaris\cfdi\CFDI} objeto en PHP para su uso con
@@ -238,6 +240,11 @@ class LectorCfdi
         $nodo = $this->leerComercioExterior($complementos);
         if (!empty($nodo)) {
             $dataOut['ComercioExterior'] = $nodo;
+        }
+
+        $nodo = $this->leerPagos($complementos);
+        if (!empty($nodo)) {
+            $dataOut['Pagos'] = $nodo;
         }
 
         return $dataOut;
